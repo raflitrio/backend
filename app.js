@@ -5,37 +5,36 @@ const path = require('path');
 const app = express();
 const port = 8080;
 
-// GCS Client
-const storage = new Storage({
-  keyFilename: 'service-account-file.json', // Ganti dengan path file service account key
-});
-const bucketName = 'skincam';  // Ganti dengan nama bucket GCS
 
-// Set up multer untuk menangani upload file
+const storage = new Storage({
+  keyFilename: 'service-account-file.json',
+});
+const bucketName = 'skincam'; 
+
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }  // Menyimpan file sementara di memori sebelum diupload ke GCS
+  limits: { fileSize: 10 * 1024 * 1024 } 
 });
 
 app.get('/allavatars', async (req, res) => {
   try {
     const [files] = await storage.bucket(bucketName).getFiles({ prefix: 'avatar/' });
 
-    // Filter only files with extensions .png, .jpg, or .jpeg
+ 
     const imageFiles = files.filter(file => 
       file.name.endsWith('.png') || file.name.endsWith('.jpg') || file.name.endsWith('.jpeg')
     ).map(file => {
-      // Get the publicly accessible URL
+
       const imagePath = file.name;
       return `http://storage.googleapis.com/${bucketName}/${imagePath}`;
     });
 
-    // If no images found, send a 404 response
+
     if (imageFiles.length === 0) {
       return res.status(404).send('No images found');
     }
 
-    // Display the list of images
     res.status(200).json({ images: imageFiles });
   } catch (error) {
     console.error('Error fetching images:', error);
@@ -43,10 +42,10 @@ app.get('/allavatars', async (req, res) => {
   }
 });
 
-// API untuk mengambil gambar dari folder avatar di GCS (GET)
+/// API untuk mengambil gambar dari folder avatar berdasarkan nama///
 app.get('/avatar/:imageName', async (req, res) => {
   const imageName = req.params.imageName;
-  const imagePath = `avatar/${imageName}`; // Menambahkan 'avatar/' ke path gambar
+  const imagePath = `avatar/${imageName}`;
 
   try {
     const file = storage.bucket(bucketName).file(imagePath);
@@ -69,7 +68,7 @@ app.get('/avatar/:imageName', async (req, res) => {
 });
 
 app.post('/upload', upload.any(), async (req, res) => {
-  const file = req.files?.[0]; // Ambil file pertama dari array files
+  const file = req.files?.[0]; 
   if (!file) {
     return res.status(400).send('No file uploaded');
   }
@@ -103,7 +102,7 @@ app.post('/upload', upload.any(), async (req, res) => {
   }
 });
 
-// API untuk mengganti gambar yang sudah ada di folder avatar (PUT)
+/// API untuk mengganti gambar yang sudah ada di folder avatar berdasaekan nama///
 app.put('/avatar/:imageName', upload.single('file'), async (req, res) => {
   const imageName = req.params.imageName;
   const file = req.file;
@@ -117,13 +116,13 @@ app.put('/avatar/:imageName', upload.single('file'), async (req, res) => {
     const bucket = storage.bucket(bucketName);
     const gcsFile = bucket.file(imagePath);
 
-    // Mengupload file baru ke GCS (mengganti file lama)
+
     await gcsFile.save(file.buffer, {
       contentType: file.mimetype,
-      public: true,  // Agar file bisa diakses publik
+      public: true, 
     });
 
-    // Mendapatkan URL gambar yang bisa diakses
+
     const [url] = await gcsFile.getSignedUrl({
       action: 'read',
       expires: '03-09-2491',
@@ -138,14 +137,13 @@ app.put('/avatar/:imageName', upload.single('file'), async (req, res) => {
 
 ///////BY SUB FOLDER///////////
 app.get('/produkimg/malam/:subfolder', async (req, res) => {
-  const { subfolder } = req.params; // Ambil parameter 'subfolder'
-  const imagePathPrefix = `produkimg/malam/${subfolder}/`; // Tambahkan '/' di akhir path untuk memastikan ini adalah prefix folder
+  const { subfolder } = req.params;
+  const imagePathPrefix = `produkimg/malam/${subfolder}/`;
 
   try {
-    // Mendapatkan semua file dengan prefix yang sesuai
     const [files] = await storage.bucket(bucketName).getFiles({ prefix: imagePathPrefix });
 
-    // Jika tidak ada file ditemukan
+ 
     if (files.length === 0) {
       return res.status(404).send('No files found in the folder');
     }
@@ -153,31 +151,31 @@ app.get('/produkimg/malam/:subfolder', async (req, res) => {
     const fileUrls = [];
 
     for (const file of files) {
-      const fileNameWithExt = file.name.replace(imagePathPrefix, ''); // Ambil nama file lengkap
-      const fileName = fileNameWithExt.split('.').slice(0, -1).join('.'); // Hapus ekstensi file, hanya ambil nama
-      const fileExtension = fileNameWithExt.split('.').pop().toLowerCase(); // Ekstensi file (untuk tipe)
+      const fileNameWithExt = file.name.replace(imagePathPrefix, '');
+      const fileName = fileNameWithExt.split('.').slice(0, -1).join('.'); 
+      const fileExtension = fileNameWithExt.split('.').pop().toLowerCase();
 
-      // Hanya proses file dengan tipe yang diinginkan
+   
       if (['png', 'jpg', 'jpeg', 'txt'].includes(fileExtension)) {
         const [url] = await file.getSignedUrl({
           action: 'read',
-          expires: '03-09-2491', // Tanggal kedaluwarsa URL
+          expires: '03-09-2491', 
         });
 
         fileUrls.push({ 
           type: fileExtension === 'txt' ? 'text' : 'image', 
-          name: fileName,  // Hanya gunakan nama file tanpa ekstensi
+          name: fileName,  
           url 
         });
       }
     }
 
-    // Jika tidak ada file yang sesuai tipe
+
     if (fileUrls.length === 0) {
       return res.status(404).send('No supported files found in the folder');
     }
 
-    // Kembalikan hasil sebagai JSON
+
     res.status(200).json({ files: fileUrls });
 
   } catch (error) {
@@ -189,43 +187,43 @@ app.get('/produkimg/malam/:subfolder', async (req, res) => {
 ///////ALL MALAM///////
 app.get('/allmalam', async (req, res) => {
   try {
-    // Mendapatkan semua file dengan prefix 'allmalam/'
+   
     const [files] = await storage.bucket(bucketName).getFiles({ prefix: 'allmalam/' });
 
-    // Jika tidak ada file ditemukan
+   
     if (files.length === 0) {
       return res.status(404).send('No files found in the folder');
     }
 
     const fileUrls = [];
 
-    // Proses setiap file untuk menghasilkan URL yang dapat diakses
+ 
     for (const file of files) {
-      const fileNameWithExt = file.name.split('/').pop(); // Ambil nama file dari path lengkap
-      const fileName = fileNameWithExt.split('.').slice(0, -1).join('.'); // Hapus ekstensi dari nama file
-      const fileExtension = fileNameWithExt.split('.').pop().toLowerCase(); // Mendapatkan ekstensi file untuk tipe
+      const fileNameWithExt = file.name.split('/').pop();
+      const fileName = fileNameWithExt.split('.').slice(0, -1).join('.'); 
+      const fileExtension = fileNameWithExt.split('.').pop().toLowerCase();
 
-      // Hanya proses file dengan tipe yang diinginkan (image atau text)
+     
       if (['png', 'jpg', 'jpeg', 'txt'].includes(fileExtension)) {
         const [url] = await file.getSignedUrl({
           action: 'read',
-          expires: '03-09-2491', // Tanggal kedaluwarsa URL
+          expires: '03-09-2491', 
         });
 
         fileUrls.push({ 
-          type: fileExtension === 'txt' ? 'text' : 'image',  // Tentukan tipe file
-          name: fileName,  // Hanya gunakan nama file tanpa ekstensi
+          type: fileExtension === 'txt' ? 'text' : 'image', 
+          name: fileName,
           url 
         });
       }
     }
 
-    // Jika tidak ada file yang sesuai tipe
+    
     if (fileUrls.length === 0) {
       return res.status(404).send('No supported files found in the folder');
     }
 
-    // Kembalikan hasil sebagai JSON
+   
     res.status(200).json({ files: fileUrls });
 
   } catch (error) {
@@ -239,43 +237,43 @@ app.get('/allmalam', async (req, res) => {
 
 app.get('/allpagi', async (req, res) => {
   try {
-    // Mendapatkan semua file dengan prefix 'allmalam/'
+
     const [files] = await storage.bucket(bucketName).getFiles({ prefix: 'allpagi/' });
 
-    // Jika tidak ada file ditemukan
+
     if (files.length === 0) {
       return res.status(404).send('No files found in the folder');
     }
 
     const fileUrls = [];
 
-    // Proses setiap file untuk menghasilkan URL yang dapat diakses
+    
     for (const file of files) {
-      const fileNameWithExt = file.name.split('/').pop(); // Ambil nama file dari path lengkap
-      const fileName = fileNameWithExt.split('.').slice(0, -1).join('.'); // Hapus ekstensi dari nama file
-      const fileExtension = fileNameWithExt.split('.').pop().toLowerCase(); // Mendapatkan ekstensi file untuk tipe
+      const fileNameWithExt = file.name.split('/').pop(); 
+      const fileName = fileNameWithExt.split('.').slice(0, -1).join('.');
+      const fileExtension = fileNameWithExt.split('.').pop().toLowerCase(); 
 
-      // Hanya proses file dengan tipe yang diinginkan (image atau text)
+      
       if (['png', 'jpg', 'jpeg', 'txt'].includes(fileExtension)) {
         const [url] = await file.getSignedUrl({
           action: 'read',
-          expires: '03-09-2491', // Tanggal kedaluwarsa URL
+          expires: '03-09-2491',
         });
 
         fileUrls.push({ 
-          type: fileExtension === 'txt' ? 'text' : 'image',  // Tentukan tipe file
-          name: fileName,  // Hanya gunakan nama file tanpa ekstensi
+          type: fileExtension === 'txt' ? 'text' : 'image', 
+          name: fileName, 
           url 
         });
       }
     }
 
-    // Jika tidak ada file yang sesuai tipe
+  
     if (fileUrls.length === 0) {
       return res.status(404).send('No supported files found in the folder');
     }
 
-    // Kembalikan hasil sebagai JSON
+
     res.status(200).json({ files: fileUrls });
 
   } catch (error) {
@@ -285,14 +283,14 @@ app.get('/allpagi', async (req, res) => {
 });
 
 app.get('/produkimg/pagi/:subfolder', async (req, res) => {
-  const { subfolder } = req.params; // Ambil parameter 'subfolder'
-  const imagePathPrefix = `produkimg/pagi/${subfolder}/`; // Tambahkan '/' di akhir path untuk memastikan ini adalah prefix folder
+  const { subfolder } = req.params;
+  const imagePathPrefix = `produkimg/pagi/${subfolder}/`;
 
   try {
-    // Mendapatkan semua file dengan prefix yang sesuai
+    
     const [files] = await storage.bucket(bucketName).getFiles({ prefix: imagePathPrefix });
 
-    // Jika tidak ada file ditemukan
+    
     if (files.length === 0) {
       return res.status(404).send('No files found in the folder');
     }
@@ -300,31 +298,31 @@ app.get('/produkimg/pagi/:subfolder', async (req, res) => {
     const fileUrls = [];
 
     for (const file of files) {
-      const fileNameWithExt = file.name.replace(imagePathPrefix, ''); // Ambil nama file lengkap
-      const fileName = fileNameWithExt.split('.').slice(0, -1).join('.'); // Hapus ekstensi file, hanya ambil nama
-      const fileExtension = fileNameWithExt.split('.').pop().toLowerCase(); // Ekstensi file (untuk tipe)
+      const fileNameWithExt = file.name.replace(imagePathPrefix, ''); 
+      const fileName = fileNameWithExt.split('.').slice(0, -1).join('.'); 
+      const fileExtension = fileNameWithExt.split('.').pop().toLowerCase(); 
 
-      // Hanya proses file dengan tipe yang diinginkan
+      
       if (['png', 'jpg', 'jpeg', 'txt'].includes(fileExtension)) {
         const [url] = await file.getSignedUrl({
           action: 'read',
-          expires: '03-09-2491', // Tanggal kedaluwarsa URL
+          expires: '03-09-2491',
         });
 
         fileUrls.push({ 
           type: fileExtension === 'txt' ? 'text' : 'image', 
-          name: fileName,  // Hanya gunakan nama file tanpa ekstensi
+          name: fileName, 
           url 
         });
       }
     }
 
-    // Jika tidak ada file yang sesuai tipe
+   
     if (fileUrls.length === 0) {
       return res.status(404).send('No supported files found in the folder');
     }
 
-    // Kembalikan hasil sebagai JSON
+  
     res.status(200).json({ files: fileUrls });
 
   } catch (error) {
@@ -334,11 +332,11 @@ app.get('/produkimg/pagi/:subfolder', async (req, res) => {
 });
 
 app.get('/produkimg/pagi/:subfolder/:imageName', async (req, res) => {
-  const { subfolder, imageName } = req.params; // Destructure both 'subfolder' and 'imageName' from req.params
-  const imagePathPrefix = `produkimg/pagi/${subfolder}/${imageName}`; // Correct path with subfolder and image name
+  const { subfolder, imageName } = req.params; 
+  const imagePathPrefix = `produkimg/pagi/${subfolder}/${imageName}`;
 
   try {
-    // List all files in the subfolder
+   
     const [files] = await storage.bucket(bucketName).getFiles({ prefix: imagePathPrefix });
 
     if (files.length === 0) {
@@ -351,7 +349,7 @@ app.get('/produkimg/pagi/:subfolder/:imageName', async (req, res) => {
       const fileName = file.name;
       const fileExtension = fileName.split('.').pop().toLowerCase();
 
-      // Determine the file type and generate signed URL
+    
       if (['png', 'jpg', 'jpeg'].includes(fileExtension)) {
         const [url] = await file.getSignedUrl({
           action: 'read',
@@ -367,12 +365,12 @@ app.get('/produkimg/pagi/:subfolder/:imageName', async (req, res) => {
       }
     }
 
-    // If no recognized files found
+  
     if (fileUrls.length === 0) {
       return res.status(404).send('No supported files found in the folder');
     }
 
-    // Return the list of URLs
+    
     res.status(200).json({ files: fileUrls });
 
   } catch (error) {
@@ -382,11 +380,11 @@ app.get('/produkimg/pagi/:subfolder/:imageName', async (req, res) => {
 });
 
 app.get('/produkimg/malam/:subfolder/:imageName', async (req, res) => {
-  const { subfolder, imageName } = req.params; // Destructure both 'subfolder' and 'imageName' from req.params
-  const imagePathPrefix = `produkimg/malam/${subfolder}/${imageName}`; // Correct path with subfolder and image name
+  const { subfolder, imageName } = req.params; 
+  const imagePathPrefix = `produkimg/malam/${subfolder}/${imageName}`;
 
   try {
-    // List all files in the subfolder
+   
     const [files] = await storage.bucket(bucketName).getFiles({ prefix: imagePathPrefix });
 
     if (files.length === 0) {
@@ -399,7 +397,7 @@ app.get('/produkimg/malam/:subfolder/:imageName', async (req, res) => {
       const fileName = file.name;
       const fileExtension = fileName.split('.').pop().toLowerCase();
 
-      // Determine the file type and generate signed URL
+     
       if (['png', 'jpg', 'jpeg'].includes(fileExtension)) {
         const [url] = await file.getSignedUrl({
           action: 'read',
@@ -415,12 +413,12 @@ app.get('/produkimg/malam/:subfolder/:imageName', async (req, res) => {
       }
     }
 
-    // If no recognized files found
+    
     if (fileUrls.length === 0) {
       return res.status(404).send('No supported files found in the folder');
     }
 
-    // Return the list of URLs
+   
     res.status(200).json({ files: fileUrls });
 
   } catch (error) {
@@ -429,7 +427,7 @@ app.get('/produkimg/malam/:subfolder/:imageName', async (req, res) => {
   }
 });
 
-// Server berjalan
+
 app.listen(port, '0.0.0.0', () => {
   console.log(`Server is running at http://0.0.0.0:${port}`);
 });
